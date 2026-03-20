@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Programmer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0d11;
+  --bg2: #111318;
+  --bg3: #181c23;
+  --bg4: #1e2330;
+  --border: #2a3040;
+  --border2: #3a4560;
+  --text: #e4e8f4;
+  --text2: #8a94b0;
+  --text3: #4a5270;
+  --accent: #3d8bff;
+  --accent2: #5fa3ff;
+  --green: #2fd18b;
+  --green2: #1ab070;
+  --amber: #f5a623;
+  --red: #e85050;
+  --purple: #9b6cff;
+  --teal: #26d4c8;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Space Grotesk', sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); height: 100vh; overflow: hidden; user-select: none; }
+
+/* Layout */
+#app { display: grid; grid-template-rows: 44px 1fr; grid-template-columns: 220px 1fr 280px; height: 100vh; }
+#topbar { grid-column: 1 / -1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 10; }
+#sidebar { background: var(--bg2); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 0; }
+#canvas-wrap { position: relative; overflow: hidden; background: var(--bg); }
+#rightpanel { background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+
+/* Topbar */
+.logo { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--accent2); letter-spacing: -0.5px; }
+.logo span { color: var(--green); }
+.topbtn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); font-family: var(--sans); font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; transition: all .15s; }
+.topbtn:hover { border-color: var(--border2); color: var(--text); }
+.topbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.topbtn.run { background: var(--green2); border-color: var(--green2); color: #fff; }
+.topbtn.run:hover { background: var(--green); border-color: var(--green); }
+.topbtn.stop { background: var(--red); border-color: var(--red); color: #fff; }
+.sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+.spacer { flex: 1; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); }
+.status-dot.running { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.status-label { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+
+/* Sidebar */
+.sidebar-section { padding: 6px 12px 2px; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--text3); text-transform: uppercase; margin-top: 8px; }
+.node-chip { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: grab; border-radius: 6px; margin: 2px 8px; transition: all .15s; font-size: 13px; color: var(--text2); }
+.node-chip:hover { background: var(--bg3); color: var(--text); }
+.node-chip:active { cursor: grabbing; }
+.chip-icon { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+
+/* Canvas dots */
+#canvas { position: absolute; inset: 0; }
+.dot-grid { background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 28px 28px; }
+
+/* Nodes */
+.flow-node { position: absolute; min-width: 160px; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 10px; cursor: move; box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: box-shadow .15s; font-size: 13px; }
+.flow-node:hover { box-shadow: 0 4px 32px rgba(0,0,0,.7); }
+.flow-node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(61,139,255,.2), 0 4px 24px rgba(0,0,0,.5); }
+.flow-node.running-node { border-color: var(--green); box-shadow: 0 0 0 2px rgba(47,209,139,.15), 0 0 20px rgba(47,209,139,.2); }
+.node-header { display: flex; align-items: center; gap: 8px; padding: 9px 12px 8px; border-bottom: 1px solid var(--border); border-radius: 9px 9px 0 0; }
+.node-title { font-weight: 500; font-size: 13px; flex: 1; }
+.node-type-badge { font-size: 10px; font-family: var(--mono); padding: 2px 6px; border-radius: 4px; }
+.node-body { padding: 10px 12px; }
+.node-param { margin-bottom: 8px; }
+.node-param label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 3px; font-family: var(--mono); }
+.node-param input, .node-param select { width: 100%; background: var(--bg4); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 12px; padding: 5px 8px; border-radius: 5px; outline: none; transition: border-color .15s; }
+.node-param input:focus, .node-param select:focus { border-color: var(--accent); }
+.node-param select option { background: var(--bg3); }
+
+/* Port connectors */
+.ports { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px 8px; }
+.port-col { display: flex; flex-direction: column; gap: 6px; }
+.port { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); cursor: crosshair; position: relative; }
+.port.in { flex-direction: row-reverse; }
+.port-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border2); background: var(--bg3); transition: all .15s; flex-shrink: 0; }
+.port:hover .port-dot { border-color: var(--accent); background: var(--accent); }
+.port-dot.connected { background: var(--green); border-color: var(--green); }
+.port-dot.data { border-color: var(--amber); }
+.port-dot.data:hover, .port-dot.data.connected { background: var(--amber); border-color: var(--amber); }
+
+/* SVG edges */
+#edges-svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.edge-path { fill: none; stroke: var(--border2); stroke-width: 2; transition: stroke .2s; }
+.edge-path.data { stroke: var(--amber); }
+.edge-path.active { stroke: var(--green); stroke-width: 2.5; }
+.edge-path:hover { stroke: var(--accent); }
+
+/* Node colors by type */
+.nt-input    .node-header { background: rgba(47,209,139,.07); }
+.nt-input    .chip-icon, .nt-input .node-type-badge { background: rgba(47,209,139,.15); color: var(--green); }
+.nt-output   .node-header { background: rgba(61,139,255,.07); }
+.nt-output   .chip-icon, .nt-output .node-type-badge { background: rgba(61,139,255,.15); color: var(--accent2); }
+.nt-condition .node-header { background: rgba(245,166,35,.07); }
+.nt-condition .chip-icon, .nt-condition .node-type-badge { background: rgba(245,166,35,.15); color: var(--amber); }
+.nt-loop     .node-header { background: rgba(155,108,255,.07); }
+.nt-loop     .chip-icon, .nt-loop .node-type-badge { background: rgba(155,108,255,.15); color: var(--purple); }
+.nt-variable .node-header { background: rgba(38,212,200,.07); }
+.nt-variable .chip-icon, .nt-variable .node-type-badge { background: rgba(38,212,200,.15); color: var(--teal); }
+.nt-function .node-header { background: rgba(232,80,80,.07); }
+.nt-function .chip-icon, .nt-function .node-type-badge { background: rgba(232,80,80,.15); color: var(--red); }
+.nt-delay    .node-header { background: rgba(138,148,176,.07); }
+.nt-delay    .chip-icon, .nt-delay .node-type-badge { background: rgba(138,148,176,.15); color: var(--text2); }
+.nt-sensor   .node-header { background: rgba(47,209,139,.07); }
+.nt-sensor   .chip-icon, .nt-sensor .node-type-badge { background: rgba(47,209,139,.12); color: #5effc3; }
+
+/* Right panel */
+#rpanel-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.rpanel-tab { flex: 1; padding: 10px 8px; text-align: center; font-size: 12px; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+.rpanel-tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+#rpanel-content { flex: 1; overflow: hidden; }
+.rpanel-view { display: none; height: 100%; flex-direction: column; }
+.rpanel-view.active { display: flex; }
+
+/* Code panel */
+#code-area { flex: 1; background: var(--bg); font-family: var(--mono); font-size: 12px; color: var(--text2); padding: 16px; overflow-y: auto; line-height: 1.7; white-space: pre; border: none; outline: none; resize: none; }
+.code-line-num { color: var(--text3); user-select: none; }
+.code-kw { color: #7eb7ff; }
+.code-str { color: #7ec891; }
+.code-num { color: var(--amber); }
+.code-fn { color: #d8a3ff; }
+.code-comment { color: var(--text3); }
+
+/* Console */
+#console-area { flex: 1; background: var(--bg); font-family: var(--mono); font-size: 12px; padding: 10px 14px; overflow-y: auto; line-height: 1.6; }
+.console-line { margin-bottom: 2px; }
+.console-line.info { color: var(--text2); }
+.console-line.success { color: var(--green); }
+.console-line.warn { color: var(--amber); }
+.console-line.error { color: var(--red); }
+.console-line.step { color: var(--purple); }
+.console-ts { color: var(--text3); margin-right: 8px; }
+.console-input { display: flex; border-top: 1px solid var(--border); }
+.console-input input { flex: 1; background: transparent; border: none; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 8px 14px; outline: none; }
+.console-prompt { padding: 8px 6px 8px 14px; color: var(--accent); font-family: var(--mono); font-size: 12px; }
+
+/* Props panel */
+#props-area { flex: 1; padding: 14px; overflow-y: auto; }
+.prop-group { margin-bottom: 16px; }
+.prop-label { font-size: 11px; color: var(--text3); font-family: var(--mono); letter-spacing: .5px; margin-bottom: 4px; }
+.prop-val { font-size: 13px; color: var(--text); }
+.prop-input { width: 100%; background: var(--bg4); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 12px; padding: 6px 10px; border-radius: 6px; outline: none; }
+.prop-input:focus { border-color: var(--accent); }
+.no-select-msg { color: var(--text3); font-size: 13px; padding: 20px 14px; text-align: center; line-height: 1.8; }
+
+/* Sim controls */
+#sim-bar { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.sim-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); font-family: var(--mono); font-size: 11px; padding: 5px 10px; border-radius: 5px; cursor: pointer; transition: all .15s; }
+.sim-btn:hover { border-color: var(--border2); color: var(--text); }
+.sim-label { font-size: 11px; color: var(--text3); font-family: var(--mono); flex: 1; text-align: right; }
+
+/* Var watch */
+#vars-area { flex: 1; padding: 10px; overflow-y: auto; }
+.var-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; margin-bottom: 3px; background: var(--bg3); border: 1px solid var(--border); }
+.var-name { font-family: var(--mono); font-size: 12px; color: var(--teal); }
+.var-val { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+.var-changed { animation: flash .4s ease-out; }
+@keyframes flash { 0% { background: rgba(245,166,35,.2); } 100% { background: var(--bg3); } }
+
+/* Minimap */
+#minimap { position: absolute; bottom: 14px; right: 14px; width: 140px; height: 90px; background: rgba(17,19,24,.92); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; pointer-events: none; }
+
+/* Zoom controls */
+#zoom-ctrl { position: absolute; bottom: 14px; left: 14px; display: flex; flex-direction: column; gap: 4px; }
+.zoom-btn { width: 28px; height: 28px; background: var(--bg2); border: 1px solid var(--border); color: var(--text2); font-size: 16px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; line-height: 1; }
+.zoom-btn:hover { border-color: var(--border2); color: var(--text); }
+
+/* Tooltip */
+.tooltip { position: fixed; background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 10px; font-size: 12px; color: var(--text); pointer-events: none; z-index: 1000; opacity: 0; transition: opacity .1s; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* Connection line being drawn */
+#drawing-edge { position: absolute; pointer-events: none; }
+
+/* Node delete btn */
+.node-del { width: 18px; height: 18px; background: transparent; border: none; color: var(--text3); font-size: 14px; cursor: pointer; border-radius: 3px; display: flex; align-items: center; justify-content: center; transition: all .12s; line-height: 1; }
+.node-del:hover { color: var(--red); background: rgba(232,80,80,.1); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Topbar -->
+  <div id="topbar">
+    <div class="logo">⟨<span>flow</span>⟩ programmer</div>
+    <div class="sep"></div>
+    <button class="topbtn" onclick="newProject()">New</button>
+    <button class="topbtn" onclick="loadTemplate('iot')">IoT Template</button>
+    <button class="topbtn" onclick="loadTemplate('loop')">Loop Demo</button>
+    <div class="sep"></div>
+    <button class="topbtn run" id="run-btn" onclick="startSimulation()">▶ Run</button>
+    <button class="topbtn" id="step-btn" onclick="stepSimulation()">⇥ Step</button>
+    <button class="topbtn stop" id="stop-btn" onclick="stopSimulation()" style="display:none">■ Stop</button>
+    <div class="sep"></div>
+    <div class="status-dot" id="status-dot"></div>
+    <div class="status-label" id="status-label">idle</div>
+    <div class="spacer"></div>
+    <button class="topbtn" onclick="toggleCodeView()">{ } Code</button>
+    <button class="topbtn" onclick="exportCode()">↓ Export</button>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-section">Control Flow</div>
+    <div class="node-chip nt-input" draggable="true" ondragstart="startNodeDrag(event,'start')">
+      <div class="chip-icon nt-input">▶</div><span>Start</span>
+    </div>
+    <div class="node-chip nt-condition" draggable="true" ondragstart="startNodeDrag(event,'condition')">
+      <div class="chip-icon nt-condition">◇</div><span>If / Condition</span>
+    </div>
+    <div class="node-chip nt-loop" draggable="true" ondragstart="startNodeDrag(event,'loop')">
+      <div class="chip-icon nt-loop">↻</div><span>For Loop</span>
+    </div>
+    <div class="node-chip nt-delay" draggable="true" ondragstart="startNodeDrag(event,'delay')">
+      <div class="chip-icon nt-delay">⏱</div><span>Delay</span>
+    </div>
+    <div class="node-chip nt-output" draggable="true" ondragstart="startNodeDrag(event,'end')">
+      <div class="chip-icon nt-output">⬛</div><span>End</span>
+    </div>
+
+    <div class="sidebar-section">Data</div>
+    <div class="node-chip nt-variable" draggable="true" ondragstart="startNodeDrag(event,'variable')">
+      <div class="chip-icon nt-variable">x=</div><span>Variable</span>
+    </div>
+    <div class="node-chip nt-function" draggable="true" ondragstart="startNodeDrag(event,'function')">
+      <div class="chip-icon nt-function">ƒ()</div><span>Function</span>
+    </div>
+
+    <div class="sidebar-section">I/O</div>
+    <div class="node-chip nt-input" draggable="true" ondragstart="startNodeDrag(event,'print')">
+      <div class="chip-icon nt-input">»</div><span>Print</span>
+    </div>
+    <div class="node-chip nt-output" draggable="true" ondragstart="startNodeDrag(event,'input')">
+      <div class="chip-icon nt-output">←</div><span>User Input</span>
+    </div>
+
+    <div class="sidebar-section">Hardware</div>
+    <div class="node-chip nt-sensor" draggable="true" ondragstart="startNodeDrag(event,'sensor')">
+      <div class="chip-icon nt-sensor">≋</div><span>Sensor Read</span>
+    </div>
+    <div class="node-chip nt-output" draggable="true" ondragstart="startNodeDrag(event,'gpio')">
+      <div class="chip-icon nt-output">⚡</div><span>GPIO Write</span>
+    </div>
+    <div class="node-chip nt-function" draggable="true" ondragstart="startNodeDrag(event,'api')">
+      <div class="chip-icon nt-function">⇌</div><span>HTTP API</span>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvas-wrap"
+       ondragover="event.preventDefault()"
+       ondrop="handleDrop(event)"
+       onmousedown="canvasMouseDown(event)"
+       onmousemove="canvasMouseMove(event)"
+       onmouseup="canvasMouseUp(event)"
+       onwheel="handleWheel(event)">
+    <div id="canvas" class="dot-grid">
+      <svg id="edges-svg"></svg>
+    </div>
+    <div id="zoom-ctrl">
+      <button class="zoom-btn" onclick="zoom(1.15)" title="Zoom in">+</button>
+      <button class="zoom-btn" onclick="zoom(0.87)" title="Zoom out">−</button>
+      <button class="zoom-btn" onclick="fitView()" title="Fit" style="font-size:11px">⊡</button>
+    </div>
+    <canvas id="minimap"></canvas>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="rightpanel">
+    <div id="rpanel-tabs">
+      <div class="rpanel-tab active" onclick="setRPanel('props')">Properties</div>
+      <div class="rpanel-tab" onclick="setRPanel('vars')">Variables</div>
+      <div class="rpanel-tab" onclick="setRPanel('console')">Console</div>
+    </div>
+    <div id="rpanel-content">
+      <!-- Props -->
+      <div class="rpanel-view active" id="view-props">
+        <div id="props-area">
+          <div class="no-select-msg">Select a node to inspect its properties</div>
+        </div>
+      </div>
+      <!-- Vars -->
+      <div class="rpanel-view" id="view-vars">
+        <div id="vars-area"></div>
+      </div>
+      <!-- Console -->
+      <div class="rpanel-view" id="view-console">
+        <div id="console-area"></div>
+        <div class="console-input">
+          <span class="console-prompt">›</span>
+          <input id="console-input-field" placeholder="eval expression..." onkeydown="consoleKey(event)">
+        </div>
+      </div>
+    </div>
+    <div id="sim-bar">
+      <button class="sim-btn" onclick="stepSimulation()">Step</button>
+      <button class="sim-btn" onclick="resetSimulation()">Reset</button>
+      <span class="sim-label" id="sim-step-label">step: 0</span>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ===== STATE =====
+let nodes = [];
+let edges = [];
+let selectedNode = null;
+let draggingNode = null;
+let dragOffset = { x: 0, y: 0 };
+let connectingFrom = null; // { nodeId, port, portType }
+let drawingEdgeLine = null;
+let panOffset = { x: 60, y: 60 };
+let panScale = 1;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let nodeCounter = 0;
+let simState = { running: false, step: 0, variables: {}, currentNodeId: null, interval: null };
+let consoleLines = [];
+let rpanelActive = 'props';
+
+const NODE_DEFS = {
+  start:     { label: 'Start',       type: 'input',    outs: ['flow'], ins: [], icon: '▶', color: 'nt-input', defaultParams: {} },
+  end:       { label: 'End',         type: 'output',   outs: [], ins: ['flow'], icon: '⬛', color: 'nt-output', defaultParams: {} },
+  condition: { label: 'If Condition', type: 'condition', outs: ['true', 'false'], ins: ['flow'], icon: '◇', color: 'nt-condition',
+               defaultParams: { condition: 'x > 5' } },
+  loop:      { label: 'For Loop',    type: 'loop',     outs: ['body', 'done'], ins: ['flow'], icon: '↻', color: 'nt-loop',
+               defaultParams: { from: '0', to: '10', step: '1', var: 'i' } },
+  delay:     { label: 'Delay',       type: 'delay',    outs: ['flow'], ins: ['flow'], icon: '⏱', color: 'nt-delay',
+               defaultParams: { ms: '500' } },
+  variable:  { label: 'Variable',    type: 'variable', outs: ['value'], ins: ['set'], icon: 'x=', color: 'nt-variable',
+               defaultParams: { name: 'x', value: '0' } },
+  function:  { label: 'Function',    type: 'function', outs: ['result'], ins: ['call'], icon: 'ƒ()', color: 'nt-function',
+               defaultParams: { name: 'myFn', body: 'return x * 2' } },
+  print:     { label: 'Print',       type: 'input',    outs: ['flow'], ins: ['flow', 'value'], icon: '»', color: 'nt-input',
+               defaultParams: { message: '"Hello!"' } },
+  input:     { label: 'User Input',  type: 'output',   outs: ['value', 'flow'], ins: ['flow'], icon: '←', color: 'nt-output',
+               defaultParams: { prompt: '"Enter value:"', var: 'userVal' } },
+  sensor:    { label: 'Sensor Read', type: 'sensor',   outs: ['value', 'flow'], ins: ['flow'], icon: '≋', color: 'nt-sensor',
+               defaultParams: { pin: 'A0', type: 'analog', var: 'sensorVal' } },
+  gpio:      { label: 'GPIO Write',  type: 'output',   outs: ['flow'], ins: ['flow', 'value'], icon: '⚡', color: 'nt-output',
+               defaultParams: { pin: '13', mode: 'digital', value: 'HIGH' } },
+  api:       { label: 'HTTP API',    type: 'function', outs: ['response', 'flow'], ins: ['flow'], icon: '⇌', color: 'nt-function',
+               defaultParams: { url: 'https://api.example.com/data', method: 'GET', var: 'apiRes' } },
+};
+
+// ===== INIT =====
+function init() {
+  loadTemplate('iot');
+  renderEdges();
+  updateMinimap();
+  consoleLog('Flow Programmer ready.', 'success');
+  consoleLog('Drag nodes from sidebar. Connect ports to build your flow.', 'info');
+}
+
+// ===== NODE CREATION =====
+function createNode(type, x, y) {
+  const def = NODE_DEFS[type];
+  if (!def) return null;
+  const id = 'n' + (++nodeCounter);
+  const node = {
+    id, type,
+    x: x - panOffset.x,
+    y: y - panOffset.y,
+    label: def.label,
+    params: { ...def.defaultParams },
+    ports: { ins: [...def.ins], outs: [...def.outs] }
+  };
+  nodes.push(node);
+  renderNode(node);
+  return node;
+}
+
+function renderNode(node) {
+  const def = NODE_DEFS[node.type];
+  const el = document.createElement('div');
+  el.className = `flow-node ${def.color}`;
+  el.id = `node-${node.id}`;
+  el.style.left = (node.x + panOffset.x) + 'px';
+  el.style.top = (node.y + panOffset.y) + 'px';
+  el.style.transform = `scale(${panScale})`;
+  el.style.transformOrigin = 'top left';
+
+  const paramKeys = Object.keys(node.params);
+
+  el.innerHTML = `
+    <div class="node-header">
+      <div class="chip-icon ${def.color}" style="width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;">${def.icon}</div>
+      <div class="node-title">${node.label}</div>
+      <span class="node-type-badge ${def.color}" style="font-size:10px;padding:2px 6px;border-radius:4px;">${node.type}</span>
+      <button class="node-del" onclick="deleteNode('${node.id}')">×</button>
+    </div>
+    ${paramKeys.length ? `<div class="node-body">${paramKeys.map(k => `
+      <div class="node-param">
+        <label>${k}</label>
+        <input value="${node.params[k]}" onchange="updateParam('${node.id}','${k}',this.value)" onclick="event.stopPropagation()">
+      </div>`).join('')}
+    </div>` : ''}
+    <div class="ports">
+      <div class="port-col">
+        ${node.ports.ins.map(p => `
+          <div class="port in" data-node="${node.id}" data-port="${p}" data-dir="in" onmousedown="portMouseDown(event,'${node.id}','${p}','in')">
+            <div class="port-dot ${p==='value'||p==='set'?'data':''}"></div>
+            <span>${p}</span>
+          </div>`).join('')}
+      </div>
+      <div class="port-col" style="align-items:flex-end">
+        ${node.ports.outs.map(p => `
+          <div class="port" data-node="${node.id}" data-port="${p}" data-dir="out" onmousedown="portMouseDown(event,'${node.id}','${p}','out')">
+            <span>${p}</span>
+            <div class="port-dot ${p==='value'||p==='result'||p==='response'?'data':''}"></div>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+
+  el.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.port') || e.target.closest('.node-del') || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    e.stopPropagation();
+    selectNode(node.id);
+    draggingNode = node.id;
+    const rect = el.getBoundingClientRect();
+    dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  });
+
+  document.getElementById('canvas').appendChild(el);
+}
+
+function updateNodePos(nodeId) {
+  const node = nodes.find(n => n.id === nodeId);
+  const el = document.getElementById('node-' + nodeId);
+  if (!el || !node) return;
+  el.style.left = (node.x + panOffset.x) + 'px';
+  el.style.top = (node.y + panOffset.y) + 'px';
+  el.style.transform = `scale(${panScale})`;
+  renderEdges();
+}
+
+function deleteNode(id) {
+  nodes = nodes.filter(n => n.id !== id);
+  edges = edges.filter(e => e.from !== id && e.to !== id);
+  const el = document.getElementById('node-' + id);
+  if (el) el.remove();
+  if (selectedNode === id) { selectedNode = null; showProps(null); }
+  renderEdges();
+}
+
+function selectNode(id) {
+  document.querySelectorAll('.flow-node.selected').forEach(e => e.classList.remove('selected'));
+  selectedNode = id;
+  if (id) {
+    document.getElementById('node-' + id)?.classList.add('selected');
+    showProps(id);
+  }
+}
+
+function updateParam(nodeId, key, val) {
+  const node = nodes.find(n => n.id === nodeId);
+  if (node) { node.params[key] = val; regenerateCode(); }
+}
+
+// ===== EDGES =====
+function portMouseDown(e, nodeId, port, dir) {
+  e.stopPropagation();
+  if (dir === 'out') {
+    connectingFrom = { nodeId, port, dir };
+    const rect = getPortPos(nodeId, port, dir);
+    drawingEdgeLine = { x1: rect.x, y1: rect.y, x2: rect.x, y2: rect.y };
+  } else {
+    // Complete connection
+    if (connectingFrom) {
+      addEdge(connectingFrom.nodeId, connectingFrom.port, nodeId, port);
+      connectingFrom = null;
+      drawingEdgeLine = null;
+      renderEdges();
+    }
+  }
+}
+
+function addEdge(fromId, fromPort, toId, toPort) {
+  const exists = edges.find(e => e.from === fromId && e.fromPort === fromPort && e.to === toId && e.toPort === toPort);
+  if (!exists) {
+    edges.push({ id: 'e' + Date.now(), from: fromId, fromPort, to: toId, toPort });
+    updatePortConnected(fromId, fromPort, true);
+    updatePortConnected(toId, toPort, true);
+    renderEdges();
+    regenerateCode();
+  }
+}
+
+function updatePortConnected(nodeId, port, val) {
+  const el = document.querySelector(`#node-${nodeId} .port[data-port="${port}"] .port-dot`);
+  if (el) el.classList.toggle('connected', val);
+}
+
+function getPortPos(nodeId, port, dir) {
+  const sel = `#node-${nodeId} .port[data-port="${port}"][data-dir="${dir}"] .port-dot`;
+  const dot = document.querySelector(sel);
+  if (!dot) return { x: 0, y: 0 };
+  const r = dot.getBoundingClientRect();
+  const canvas = document.getElementById('canvas-wrap').getBoundingClientRect();
+  return { x: r.left - canvas.left + r.width / 2, y: r.top - canvas.top + r.height / 2 };
+}
+
+function renderEdges() {
+  const svg = document.getElementById('edges-svg');
+  svg.innerHTML = '';
+  edges.forEach(e => {
+    const fromPos = getPortPos(e.from, e.fromPort, 'out');
+    const toPos = getPortPos(e.to, e.toPort, 'in');
+    if (!fromPos || !toPos) return;
+    const dx = Math.abs(toPos.x - fromPos.x) * 0.6;
+    const isData = e.fromPort === 'value' || e.fromPort === 'result' || e.fromPort === 'response';
+    const isActive = simState.currentNodeId === e.from;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${fromPos.x},${fromPos.y} C${fromPos.x+dx},${fromPos.y} ${toPos.x-dx},${toPos.y} ${toPos.x},${toPos.y}`);
+    path.className.baseVal = `edge-path${isData?' data':''}${isActive?' active':''}`;
+    path.addEventListener('click', () => { edges = edges.filter(ed => ed.id !== e.id); renderEdges(); });
+    svg.appendChild(path);
+  });
+  // Drawing edge
+  if (drawingEdgeLine) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const { x1, y1, x2, y2 } = drawingEdgeLine;
+    const dx = Math.abs(x2 - x1) * 0.5;
+    p.setAttribute('d', `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`);
+    p.setAttribute('stroke', '#3d8bff');
+    p.setAttribute('stroke-width', '2');
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke-dasharray', '6,4');
+    svg.appendChild(p);
+  }
+  updateMinimap();
+}
+
+// ===== CANVAS INTERACTION =====
+function canvasMouseDown(e) {
+  if (e.target === document.getElementById('canvas') || e.target === document.getElementById('canvas-wrap')) {
+    if (!connectingFrom) {
+      isPanning = true;
+      panStart = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+      selectNode(null);
+    } else {
+      connectingFrom = null;
+      drawingEdgeLine = null;
+      renderEdges();
+    }
+  }
+}
+
+function canvasMouseMove(e) {
+  if (draggingNode) {
+    const canvas = document.getElementById('canvas-wrap').getBoundingClientRect();
+    const node = nodes.find(n => n.id === draggingNode);
+    if (node) {
+      node.x = e.clientX - canvas.left - dragOffset.x - panOffset.x;
+      node.y = e.clientY - canvas.top - dragOffset.y - panOffset.y;
+      updateNodePos(draggingNode);
+    }
+  } else if (isPanning) {
+    panOffset.x = e.clientX - panStart.x;
+    panOffset.y = e.clientY - panStart.y;
+    nodes.forEach(n => updateNodePos(n.id));
+  }
+  if (drawingEdgeLine) {
+    const canvas = document.getElementById('canvas-wrap').getBoundingClientRect();
+    drawingEdgeLine.x2 = e.clientX - canvas.left;
+    drawingEdgeLine.y2 = e.clientY - canvas.top;
+    renderEdges();
+  }
+}
+
+function canvasMouseUp(e) {
+  draggingNode = null;
+  isPanning = false;
+}
+
+function handleWheel(e) {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 0.9 : 1.11;
+  zoom(factor);
+}
+
+function zoom(factor) {
+  panScale = Math.max(0.3, Math.min(2, panScale * factor));
+  nodes.forEach(n => updateNodePos(n.id));
+}
+
+function fitView() {
+  if (!nodes.length) return;
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+  panOffset.x = -Math.min(...xs) + 80;
+  panOffset.y = -Math.min(...ys) + 80;
+  panScale = 1;
+  nodes.forEach(n => updateNodePos(n.id));
+}
+
+// ===== DRAG FROM SIDEBAR =====
+let draggingType = null;
+function startNodeDrag(e, type) {
+  draggingType = type;
+  e.dataTransfer.setData('nodeType', type);
+}
+function handleDrop(e) {
+  e.preventDefault();
+  const type = e.dataTransfer.getData('nodeType') || draggingType;
+  if (!type) return;
+  const canvas = document.getElementById('canvas-wrap').getBoundingClientRect();
+  createNode(type, e.clientX - canvas.left, e.clientY - canvas.top);
+  regenerateCode();
+}
+
+// ===== PROPERTIES PANEL =====
+function showProps(nodeId) {
+  const area = document.getElementById('props-area');
+  if (!nodeId) { area.innerHTML = '<div class="no-select-msg">Select a node to inspect its properties</div>'; return; }
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  const def = NODE_DEFS[node.type];
+  area.innerHTML = `
+    <div class="prop-group"><div class="prop-label">NODE ID</div><div class="prop-val" style="font-family:var(--mono);font-size:12px;color:var(--teal)">${node.id}</div></div>
+    <div class="prop-group"><div class="prop-label">TYPE</div><div class="prop-val" style="font-family:var(--mono);font-size:12px;color:var(--amber)">${node.type}</div></div>
+    <div class="prop-group"><div class="prop-label">LABEL</div><input class="prop-input" value="${node.label}" onchange="node.label='${node.id}'; document.querySelector('#node-${node.id} .node-title').textContent=this.value; node.label=this.value;"></div>
+    ${Object.keys(node.params).map(k => `
+    <div class="prop-group">
+      <div class="prop-label">${k.toUpperCase()}</div>
+      <input class="prop-input" value="${node.params[k]}" onchange="updateParam('${node.id}','${k}',this.value);document.querySelector('#node-${node.id} .node-param input[onchange*=\\'${k}\\']').value=this.value">
+    </div>`).join('')}
+    <div class="prop-group" style="margin-top:16px">
+      <div class="prop-label">CONNECTIONS</div>
+      <div style="font-size:12px;color:var(--text2);font-family:var(--mono)">
+        ${edges.filter(e=>e.from===nodeId||e.to===nodeId).map(e=>`<div style="margin-bottom:3px">${e.from===nodeId?'→':'←'} ${e.from===nodeId?e.to:e.from}:${e.from===nodeId?e.toPort:e.fromPort}</div>`).join('') || '<span style="color:var(--text3)">none</span>'}
+      </div>
+    </div>
+  `;
+}
+
+// ===== RIGHT PANEL TABS =====
+function setRPanel(tab) {
+  rpanelActive = tab;
+  document.querySelectorAll('.rpanel-tab').forEach((t,i)=>{
+    t.classList.toggle('active', ['props','vars','console'][i]===tab);
+  });
+  document.querySelectorAll('.rpanel-view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-'+tab)?.classList.add('active');
+}
+
+// ===== SIMULATION =====
+const simProgram = { pointer: 0, nodeQueue: [], vars: {} };
+
+function startSimulation() {
+  if (simState.running) return;
+  simState.running = true;
+  simState.step = 0;
+  simState.variables = {};
+  simState.currentNodeId = null;
+  document.getElementById('run-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = '';
+  document.getElementById('status-dot').classList.add('running');
+  document.getElementById('status-label').textContent = 'running';
+  consoleLog('--- Simulation started ---', 'success');
+  setRPanel('console');
+  // Find start node
+  const startNode = nodes.find(n => n.type === 'start');
+  if (!startNode) { consoleLog('No Start node found!', 'error'); stopSimulation(); return; }
+  simState.nodeQueue = [startNode.id];
+  simState.interval = setInterval(autoStep, 700);
+}
+
+function autoStep() {
+  if (!simState.running || !simState.nodeQueue.length) { stopSimulation(); return; }
+  stepOne();
+}
+
+function stepSimulation() {
+  if (!simState.running) {
+    startSimulation();
+    clearInterval(simState.interval);
+    simState.interval = null;
+  } else {
+    clearInterval(simState.interval);
+    simState.interval = null;
+    stepOne();
+  }
+  document.getElementById('status-dot').classList.add('running');
+  document.getElementById('status-label').textContent = 'stepped';
+  document.getElementById('run-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = '';
+}
+
+function stepOne() {
+  if (!simState.nodeQueue.length) { stopSimulation(); return; }
+  const nodeId = simState.nodeQueue.shift();
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) return;
+
+  simState.currentNodeId = nodeId;
+  simState.step++;
+  document.getElementById('sim-step-label').textContent = 'step: ' + simState.step;
+
+  // Highlight
+  document.querySelectorAll('.flow-node.running-node').forEach(e => e.classList.remove('running-node'));
+  document.getElementById('node-' + nodeId)?.classList.add('running-node');
+
+  // Execute node
+  executeNode(node);
+  renderEdges();
+  updateVarsPanel();
+}
+
+function executeNode(node) {
+  const outEdges = edges.filter(e => e.from === node.id);
+  const followPort = (portName) => {
+    const out = outEdges.filter(e => e.fromPort === portName);
+    out.forEach(e => simState.nodeQueue.push(e.to));
+  };
+
+  switch (node.type) {
+    case 'start':
+      consoleLog(`[${node.id}] Program start`, 'step');
+      followPort('flow');
+      break;
+    case 'end':
+      consoleLog(`[${node.id}] Program end`, 'step');
+      simState.nodeQueue = [];
+      break;
+    case 'variable':
+      const vname = node.params.name || 'x';
+      const vval = evalExpr(node.params.value);
+      simState.variables[vname] = vval;
+      consoleLog(`[${node.id}] ${vname} = ${JSON.stringify(vval)}`, 'info');
+      followPort('value');
+      break;
+    case 'print':
+      const msg = evalExpr(node.params.message);
+      consoleLog(`[${node.id}] ${JSON.stringify(msg)}`, 'success');
+      followPort('flow');
+      break;
+    case 'condition':
+      const cond = evalExpr(node.params.condition);
+      const result = Boolean(cond);
+      consoleLog(`[${node.id}] if(${node.params.condition}) → ${result}`, result ? 'success' : 'warn');
+      followPort(result ? 'true' : 'false');
+      break;
+    case 'loop':
+      const from = parseInt(evalExpr(node.params.from)) || 0;
+      const to = parseInt(evalExpr(node.params.to)) || 10;
+      const step = parseInt(evalExpr(node.params.step)) || 1;
+      const lvar = node.params.var || 'i';
+      consoleLog(`[${node.id}] for ${lvar} from ${from} to ${to}`, 'step');
+      for (let i = from; i < to; i += step) {
+        simState.variables[lvar] = i;
+        followPort('body');
+      }
+      followPort('done');
+      break;
+    case 'delay':
+      const ms = parseInt(node.params.ms) || 500;
+      consoleLog(`[${node.id}] delay ${ms}ms`, 'info');
+      followPort('flow');
+      break;
+    case 'sensor':
+      const sval = Math.round(Math.random() * 1023);
+      simState.variables[node.params.var || 'sensorVal'] = sval;
+      consoleLog(`[${node.id}] ${node.params.var||'sensorVal'} = ${sval} (simulated)`, 'info');
+      followPort('value'); followPort('flow');
+      break;
+    case 'gpio':
+      consoleLog(`[${node.id}] GPIO pin ${node.params.pin} → ${node.params.value}`, 'info');
+      followPort('flow');
+      break;
+    case 'api':
+      const apiRes = { status: 200, data: 'simulated response', ts: Date.now() };
+      simState.variables[node.params.var || 'apiRes'] = apiRes;
+      consoleLog(`[${node.id}] GET ${node.params.url} → 200 OK`, 'success');
+      followPort('response'); followPort('flow');
+      break;
+    case 'function':
+      consoleLog(`[${node.id}] ${node.params.name}()`, 'step');
+      followPort('result');
+      break;
+    case 'input':
+      const inputVal = prompt(evalExpr(node.params.prompt) || 'Enter value:') || '';
+      simState.variables[node.params.var || 'userVal'] = inputVal;
+      consoleLog(`[${node.id}] ${node.params.var||'userVal'} = "${inputVal}"`, 'info');
+      followPort('value'); followPort('flow');
+      break;
+    default:
+      consoleLog(`[${node.id}] executed`, 'info');
+      outEdges.forEach(e => simState.nodeQueue.push(e.to));
+  }
+}
+
+function evalExpr(expr) {
+  if (!expr) return undefined;
+  try {
+    const vars = Object.entries(simState.variables).map(([k,v]) => `const ${k} = ${JSON.stringify(v)};`).join('');
+    return Function(vars + 'return (' + expr + ')')();
+  } catch(e) {
+    return expr;
+  }
+}
+
+function stopSimulation() {
+  simState.running = false;
+  clearInterval(simState.interval);
+  simState.interval = null;
+  simState.nodeQueue = [];
+  document.getElementById('run-btn').style.display = '';
+  document.getElementById('stop-btn').style.display = 'none';
+  document.getElementById('status-dot').classList.remove('running');
+  document.getElementById('status-label').textContent = 'idle';
+  document.querySelectorAll('.flow-node.running-node').forEach(e => e.classList.remove('running-node'));
+  simState.currentNodeId = null;
+  renderEdges();
+  consoleLog('--- Simulation stopped ---', 'warn');
+}
+
+function resetSimulation() {
+  stopSimulation();
+  simState.variables = {};
+  simState.step = 0;
+  document.getElementById('sim-step-label').textContent = 'step: 0';
+  updateVarsPanel();
+  consoleLog('Variables reset.', 'info');
+}
+
+// ===== VARS PANEL =====
+function updateVarsPanel() {
+  const area = document.getElementById('vars-area');
+  if (!Object.keys(simState.variables).length) {
+    area.innerHTML = '<div class="no-select-msg">No variables yet.<br>Run simulation to see values.</div>';
+    return;
+  }
+  area.innerHTML = Object.entries(simState.variables).map(([k,v]) => `
+    <div class="var-row var-changed">
+      <span class="var-name">${k}</span>
+      <span class="var-val">${typeof v === 'object' ? JSON.stringify(v).slice(0,30) : String(v)}</span>
+    </div>
+  `).join('');
+}
+
+// ===== CONSOLE =====
+function consoleLog(msg, type = 'info') {
+  const area = document.getElementById('console-area');
+  const now = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = `console-line ${type}`;
+  line.innerHTML = `<span class="console-ts">${now}</span>${escHtml(msg)}`;
+  area.appendChild(line);
+  area.scrollTop = area.scrollHeight;
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function consoleKey(e) {
+  if (e.key !== 'Enter') return;
+  const val = e.target.value.trim();
+  if (!val) return;
+  consoleLog('› ' + val, 'info');
+  try {
+    const vars = Object.entries(simState.variables).map(([k,v]) => `const ${k} = ${JSON.stringify(v)};`).join('');
+    const res = Function(vars + 'return (' + val + ')')();
+    consoleLog('← ' + JSON.stringify(res), 'success');
+  } catch(err) {
+    consoleLog('✗ ' + err.message, 'error');
+  }
+  e.target.value = '';
+}
+
+// ===== CODE GENERATION =====
+function regenerateCode() {
+  // Auto-display in code panel if open
+}
+
+function toggleCodeView() {
+  const codeWin = document.getElementById('code-window');
+  if (codeWin) { codeWin.remove(); return; }
+  const win = document.createElement('div');
+  win.id = 'code-window';
+  win.style.cssText = `position:fixed;bottom:60px;right:300px;width:380px;height:320px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;z-index:100;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6)`;
+  win.innerHTML = `
+    <div style="display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2);font-family:var(--mono)">
+      <span style="color:var(--accent2)">generated code</span>
+      <div style="flex:1"></div>
+      <select id="lang-select" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 6px;border-radius:4px;font-family:var(--mono)" onchange="refreshCode()">
+        <option value="js">JavaScript</option>
+        <option value="py">Python</option>
+        <option value="cpp">Arduino C++</option>
+      </select>
+      <button style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:16px;margin-left:8px;line-height:1" onclick="this.closest('#code-window').remove()">×</button>
+    </div>
+    <div id="code-output" style="flex:1;overflow:auto;padding:14px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text2);white-space:pre;background:var(--bg)"></div>
+  `;
+  document.body.appendChild(win);
+  refreshCode();
+}
+
+function refreshCode() {
+  const out = document.getElementById('code-output');
+  if (!out) return;
+  const lang = document.getElementById('lang-select')?.value || 'js';
+  out.innerHTML = generateCode(lang);
+}
+
+function generateCode(lang) {
+  const sorted = topoSort();
+  if (lang === 'js') return generateJS(sorted);
+  if (lang === 'py') return generatePy(sorted);
+  return generateCpp(sorted);
+}
+
+function topoSort() {
+  // Simple: start from start node, BFS
+  const startNode = nodes.find(n => n.type === 'start');
+  if (!startNode) return [...nodes];
+  const visited = new Set(), order = [];
+  const queue = [startNode.id];
+  while (queue.length) {
+    const id = queue.shift();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const node = nodes.find(n => n.id === id);
+    if (node) order.push(node);
+    edges.filter(e => e.from === id).forEach(e => queue.push(e.to));
+  }
+  nodes.filter(n => !visited.has(n.id)).forEach(n => order.push(n));
+  return order;
+}
+
+function hl(code, lang) {
+  code = escHtml(code);
+  if (lang === 'js') {
+    code = code.replace(/\b(const|let|var|if|else|for|while|return|function|async|await|true|false|null)\b/g, '<span class="code-kw">$1</span>');
+    code = code.replace(/("[^"]*")/g, '<span class="code-str">$1</span>');
+    code = code.replace(/\b(\d+\.?\d*)\b/g, '<span class="code-num">$1</span>');
+    code = code.replace(/(\/\/.+)/g, '<span class="code-comment">$1</span>');
+  }
+  return code;
+}
+
+function generateJS(sorted) {
+  const lines = [
+    '// Generated by Flow Programmer',
+    '// ' + new Date().toLocaleString(),
+    '',
+    'async function main() {',
+  ];
+  sorted.forEach(node => {
+    switch (node.type) {
+      case 'start': lines.push('  // Program start'); break;
+      case 'end': lines.push('  // Program end'); break;
+      case 'variable': lines.push(`  let ${node.params.name} = ${node.params.value};`); break;
+      case 'print': lines.push(`  console.log(${node.params.message});`); break;
+      case 'condition':
+        lines.push(`  if (${node.params.condition}) {`);
+        lines.push('    // true branch');
+        lines.push('  } else {');
+        lines.push('    // false branch');
+        lines.push('  }');
+        break;
+      case 'loop':
+        lines.push(`  for (let ${node.params.var} = ${node.params.from}; ${node.params.var} < ${node.params.to}; ${node.params.var} += ${node.params.step}) {`);
+        lines.push('    // loop body');
+        lines.push('  }');
+        break;
+      case 'delay': lines.push(`  await new Promise(r => setTimeout(r, ${node.params.ms}));`); break;
+      case 'function': lines.push(`  const result = ${node.params.name}(/* args */);`); break;
+      case 'api': lines.push(`  const ${node.params.var} = await fetch('${node.params.url}').then(r=>r.json());`); break;
+      case 'sensor': lines.push(`  const ${node.params.var} = analogRead(${node.params.pin}); // sensor`); break;
+      case 'gpio': lines.push(`  digitalWrite(${node.params.pin}, ${node.params.value});`); break;
+    }
+  });
+  lines.push('}', '', 'main();');
+  return hl(lines.join('\n'), 'js');
+}
+
+function generatePy(sorted) {
+  const lines = [
+    '# Generated by Flow Programmer',
+    'import time', 'import asyncio', '',
+    'async def main():',
+  ];
+  sorted.forEach(node => {
+    switch (node.type) {
+      case 'variable': lines.push(`    ${node.params.name} = ${node.params.value}`); break;
+      case 'print': lines.push(`    print(${node.params.message})`); break;
+      case 'condition':
+        lines.push(`    if ${node.params.condition}:`);
+        lines.push('        pass  # true branch');
+        lines.push('    else:');
+        lines.push('        pass  # false branch');
+        break;
+      case 'loop':
+        lines.push(`    for ${node.params.var} in range(${node.params.from}, ${node.params.to}, ${node.params.step}):`);
+        lines.push('        pass  # loop body');
+        break;
+      case 'delay': lines.push(`    await asyncio.sleep(${node.params.ms}/1000)`); break;
+      case 'sensor': lines.push(`    ${node.params.var} = read_sensor(${node.params.pin})`); break;
+      case 'gpio': lines.push(`    GPIO.output(${node.params.pin}, GPIO.${node.params.value})`); break;
+      case 'api': lines.push(`    ${node.params.var} = requests.get('${node.params.url}').json()`); break;
+    }
+  });
+  lines.push('', "if __name__ == '__main__':", '    asyncio.run(main())');
+  return hl(lines.join('\n'), 'py');
+}
+
+function generateCpp(sorted) {
+  const lines = [
+    '// Generated by Flow Programmer (Arduino/ESP32)',
+    '#include <Arduino.h>', '',
+    'void setup() {',
+    '  Serial.begin(115200);',
+  ];
+  sorted.forEach(node => {
+    switch (node.type) {
+      case 'variable': lines.push(`  int ${node.params.name} = ${node.params.value};`); break;
+      case 'gpio': lines.push(`  pinMode(${node.params.pin}, OUTPUT);`); break;
+    }
+  });
+  lines.push('}', '', 'void loop() {');
+  sorted.forEach(node => {
+    switch (node.type) {
+      case 'print': lines.push(`  Serial.println(${node.params.message});`); break;
+      case 'condition':
+        lines.push(`  if (${node.params.condition}) {`);
+        lines.push('    // true');
+        lines.push('  } else {');
+        lines.push('    // false');
+        lines.push('  }');
+        break;
+      case 'loop':
+        lines.push(`  for(int ${node.params.var}=${node.params.from}; ${node.params.var}<${node.params.to}; ${node.params.var}+=${node.params.step}){`);
+        lines.push('    // body');
+        lines.push('  }');
+        break;
+      case 'delay': lines.push(`  delay(${node.params.ms});`); break;
+      case 'sensor': lines.push(`  int ${node.params.var} = analogRead(${node.params.pin});`); break;
+      case 'gpio': lines.push(`  digitalWrite(${node.params.pin}, ${node.params.value});`); break;
+    }
+  });
+  lines.push('}');
+  return hl(lines.join('\n'), 'cpp');
+}
+
+// ===== EXPORT =====
+function exportCode() {
+  const lang = 'js';
+  const code = generateJS(topoSort()).replace(/<[^>]+>/g,'');
+  const blob = new Blob([code], { type: 'text/javascript' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'flow-program.js';
+  a.click();
+}
+
+// ===== MINIMAP =====
+function updateMinimap() {
+  const canvas = document.getElementById('minimap');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = 140; canvas.height = 90;
+  ctx.clearRect(0, 0, 140, 90);
+  if (!nodes.length) return;
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+  const minX = Math.min(...xs) - 20, maxX = Math.max(...xs) + 180;
+  const minY = Math.min(...ys) - 20, maxY = Math.max(...ys) + 80;
+  const rx = 130 / (maxX - minX + 1), ry = 80 / (maxY - minY + 1);
+  const s = Math.min(rx, ry, 0.25);
+  edges.forEach(e => {
+    const fn = nodes.find(n => n.id === e.from);
+    const tn = nodes.find(n => n.id === e.to);
+    if (!fn || !tn) return;
+    ctx.beginPath();
+    ctx.strokeStyle = simState.currentNodeId === e.from ? '#2fd18b' : '#3a4560';
+    ctx.lineWidth = 1;
+    ctx.moveTo((fn.x - minX) * s + 5, (fn.y - minY) * s + 5);
+    ctx.lineTo((tn.x - minX) * s + 5, (tn.y - minY) * s + 5);
+    ctx.stroke();
+  });
+  nodes.forEach(n => {
+    const def = NODE_DEFS[n.type];
+    const colors = { 'nt-input':'#2fd18b','nt-output':'#3d8bff','nt-condition':'#f5a623','nt-loop':'#9b6cff','nt-variable':'#26d4c8','nt-function':'#e85050','nt-delay':'#8a94b0','nt-sensor':'#5effc3' };
+    ctx.fillStyle = n.id === simState.currentNodeId ? '#fff' : (colors[def.color] || '#8a94b0');
+    ctx.globalAlpha = n.id === simState.currentNodeId ? 1 : 0.5;
+    ctx.fillRect((n.x - minX) * s + 5, (n.y - minY) * s + 5, 20 * s * 8, 12 * s * 8);
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ===== TEMPLATES =====
+function newProject() {
+  nodes.forEach(n => document.getElementById('node-'+n.id)?.remove());
+  nodes = []; edges = [];
+  nodeCounter = 0;
+  document.getElementById('edges-svg').innerHTML = '';
+  simState.variables = {};
+  selectNode(null);
+  updateVarsPanel();
+  consoleLog('New project created.', 'info');
+}
+
+function loadTemplate(name) {
+  newProject();
+  if (name === 'iot') {
+    const n1 = createNode('start', 100, 100);
+    const n2 = createNode('variable', 300, 90);
+    n2.params = { name: 'threshold', value: '512' };
+    document.querySelector(`#node-${n2.id} input`)?.setAttribute('value', '512');
+    const n3 = createNode('sensor', 300, 200);
+    n3.params = { pin: 'A0', type: 'analog', var: 'sensorVal' };
+    const n4 = createNode('condition', 530, 200);
+    n4.params = { condition: 'sensorVal > threshold' };
+    const n5 = createNode('gpio', 760, 130);
+    n5.params = { pin: '13', mode: 'digital', value: 'HIGH' };
+    const n6 = createNode('print', 760, 270);
+    n6.params = { message: '"Sensor normal"' };
+    const n7 = createNode('delay', 530, 340);
+    n7.params = { ms: '1000' };
+    const n8 = createNode('end', 760, 380);
+
+    setTimeout(() => {
+      addEdge(n1.id, 'flow', n3.id, 'flow');
+      addEdge(n3.id, 'flow', n4.id, 'flow');
+      addEdge(n4.id, 'true', n5.id, 'flow');
+      addEdge(n4.id, 'false', n6.id, 'flow');
+      addEdge(n5.id, 'flow', n7.id, 'flow');
+      addEdge(n6.id, 'flow', n7.id, 'flow');
+      addEdge(n7.id, 'flow', n8.id, 'flow');
+    }, 50);
+    consoleLog('IoT monitoring template loaded.', 'success');
+  } else if (name === 'loop') {
+    const n1 = createNode('start', 100, 150);
+    const n2 = createNode('variable', 280, 100);
+    n2.params = { name: 'sum', value: '0' };
+    const n3 = createNode('loop', 280, 200);
+    n3.params = { from: '1', to: '6', step: '1', var: 'i' };
+    const n4 = createNode('print', 510, 170);
+    n4.params = { message: '"Iteration: " + i' };
+    const n5 = createNode('print', 510, 280);
+    n5.params = { message: '"Loop done"' };
+    const n6 = createNode('end', 700, 230);
+    setTimeout(() => {
+      addEdge(n1.id, 'flow', n3.id, 'flow');
+      addEdge(n3.id, 'body', n4.id, 'flow');
+      addEdge(n3.id, 'done', n5.id, 'flow');
+      addEdge(n4.id, 'flow', n6.id, 'flow');
+      addEdge(n5.id, 'flow', n6.id, 'flow');
+    }, 50);
+    consoleLog('Loop demonstration template loaded.', 'success');
+  }
+}
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode && document.activeElement.tagName !== 'INPUT') {
+    deleteNode(selectedNode);
+  }
+  if (e.key === 'Escape') {
+    connectingFrom = null;
+    drawingEdgeLine = null;
+    renderEdges();
+  }
+});
+
+// ===== TOOLTIP =====
+document.querySelectorAll('.node-chip').forEach(chip => {
+  const tips = { start:'Program entry point', condition:'Branch on true/false', loop:'Iterate with counter', delay:'Wait N milliseconds', variable:'Store/update a value', function:'Custom function call', print:'Output to console', input:'Receive user input', sensor:'Read hardware sensor', gpio:'Write to GPIO pin', api:'HTTP request' };
+  chip.addEventListener('mouseenter', e => {
+    const t = document.getElementById('tooltip');
+    const type = chip.getAttribute('ondragstart')?.match(/'(\w+)'\)$/)?.[1];
+    if (type && tips[type]) { t.textContent = tips[type]; t.style.opacity = '1'; t.style.left = (e.clientX + 12) + 'px'; t.style.top = (e.clientY - 30) + 'px'; }
+  });
+  chip.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.opacity = '0'; });
+});
+
+init();
+</script>
+</body>
+</html>
